@@ -1136,8 +1136,18 @@ function DashboardPage({
         </Panel>
 
         <Panel className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-1">
-          <StatTile title="Average rating" value="4.4" description="Across all active campaigns" icon={Star} />
-          <StatTile title="Feedback velocity" value="1,177" description="Total comments this month" icon={MessageSquare} />
+          <StatTile
+            title="Average rating"
+            value={metrics.find((m) => m.label === 'Average Rating')?.value || '—'}
+            description="Across all active campaigns"
+            icon={Star}
+          />
+          <StatTile
+            title="Feedback velocity"
+            value={metrics.find((m) => m.label === 'Total Feedbacks')?.value || '—'}
+            description="Total comments this month"
+            icon={MessageSquare}
+          />
           <StatTile title="CTR lift" value="+18%" description="Compared with previous quarter" icon={TrendingUp} />
           <StatTile title="Launch readiness" value="92%" description="Drafts ready to publish" icon={Gauge} />
         </Panel>
@@ -1148,12 +1158,14 @@ function DashboardPage({
 
 function CampaignsPage({
   campaigns,
+  feedback,
   onNavigateUpload,
   onViewCampaignFeedback,
   onToggleCampaignStatus,
   onDeleteCampaign,
 }: {
   campaigns: Campaign[];
+  feedback: Feedback[];
   onNavigateUpload: () => void;
   onViewCampaignFeedback: (id: string) => void;
   onToggleCampaignStatus: (id: string) => void;
@@ -1195,6 +1207,7 @@ function CampaignsPage({
             <CampaignRow
               key={campaign.id}
               campaign={campaign}
+              feedback={feedback}
               compact
               onViewFeedback={onViewCampaignFeedback}
               onToggleStatus={onToggleCampaignStatus}
@@ -1632,11 +1645,13 @@ function AnalyticsPage({
 
 function BrandPage({
   allCampaigns,
+  feedback = [],
   brandOwnerEmail,
   brandOwners,
   onViewCampaignFeedback,
 }: {
   allCampaigns: Campaign[];
+  feedback?: Feedback[];
   brandOwnerEmail: string;
   brandOwners: BrandOwner[];
   onViewCampaignFeedback: (id: string) => void;
@@ -1646,14 +1661,22 @@ function BrandPage({
 
   const brandOwner = brandOwners.find((b) => b.email === brandOwnerEmail) ?? brandOwners[0];
   const ownedCampaigns = allCampaigns.filter((c) => c.ownerEmail === brandOwnerEmail);
+
+  const totalRatingPoints = ownedCampaigns.reduce((sum, c) => {
+    const r = parseFloat(c.rating) || 0;
+    const f = parseInt(c.feedbacks.replace(/,/g, '')) || 0;
+    return sum + r * f;
+  }, 0);
+
+  const totalFeedbacksCount = ownedCampaigns.reduce((sum, c) => {
+    return sum + (parseInt(c.feedbacks.replace(/,/g, '')) || 0);
+  }, 0);
+
+  const avgRating = totalFeedbacksCount > 0 ? (totalRatingPoints / totalFeedbacksCount).toFixed(1) : '—';
+
   const categories = ['All', ...Array.from(new Set(ownedCampaigns.map((c) => c.category)))];
   const visibleCampaigns =
     categoryFilter === 'All' ? ownedCampaigns : ownedCampaigns.filter((c) => c.category === categoryFilter);
-
-  const avgRating =
-    ownedCampaigns.length > 0
-      ? (ownedCampaigns.reduce((s, c) => s + parseFloat(c.rating), 0) / ownedCampaigns.length).toFixed(1)
-      : '—';
 
   return (
     <div className="space-y-6">
@@ -1724,6 +1747,7 @@ function BrandPage({
             <FeedCard
               key={campaign.id}
               campaign={campaign}
+              feedback={feedback}
               brandMode
               onViewCampaign={onViewCampaignFeedback}
             />
@@ -1763,11 +1787,6 @@ function FeedCard({
     (f) => f.campaignId === campaign.id && f.userEmail === userEmail
   );
 
-  const campaignFeedback = feedback.filter((f) => f.campaignId === campaign.id);
-  const liveAvgRating = campaignFeedback.length > 0
-    ? (campaignFeedback.reduce((sum, f) => sum + f.rating, 0) / campaignFeedback.length).toFixed(1)
-    : campaign.rating;
-
   return (
     <article className="overflow-hidden rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.03))] p-4 shadow-panel lg:p-5">
       <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
@@ -1786,7 +1805,7 @@ function FeedCard({
 
           <div className="flex flex-wrap items-center gap-3">
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-white/70">
-              Average score: <span className="font-semibold text-white">{liveAvgRating}/5</span>
+              Average score: <span className="font-semibold text-white">{campaign.rating}/5</span>
             </span>
             <Pill label={campaign.status} tone={campaign.status === 'Active' ? 'green' : 'muted'} />
             {brandMode && onViewCampaign ? (

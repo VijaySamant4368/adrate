@@ -8,13 +8,13 @@
     },
     {
       "label": "Total Feedbacks",
-      "value": "7,512",
+      "value": "7,514",
       "delta": "+11.6%",
       "icon": "messages"
     },
     {
       "label": "Average Rating",
-      "value": "3.6",
+      "value": "3.1",
       "delta": "+0.2",
       "icon": "star"
     },
@@ -32,9 +32,9 @@
       "brand": "vytfkytf ytf y",
       "category": "yt fyt cvyt c",
       "status": "Active",
-      "views": "1",
-      "feedbacks": "1",
-      "rating": "4.0",
+      "views": "3",
+      "feedbacks": "3",
+      "rating": "3.0",
       "description": "t ftyvf yukv kuy",
       "tone": {
         "from": "from-[#e9ddd0]",
@@ -255,9 +255,9 @@
       "brand": "vytfkytf ytf y",
       "category": "yt fyt cvyt c",
       "status": "Active",
-      "views": "1",
-      "feedbacks": "1",
-      "rating": "4.0",
+      "views": "3",
+      "feedbacks": "3",
+      "rating": "3.0",
       "description": "t ftyvf yukv kuy",
       "tone": {
         "from": "from-[#e9ddd0]",
@@ -493,6 +493,26 @@
   ],
   "feedbackItems": [
     {
+      "name": "Aarav Mehta",
+      "userEmail": "aarav@nykaa.com",
+      "campaignId": "vytfkytf-ytf-y-1778193047783",
+      "time": "Just now",
+      "rating": 4,
+      "label": "Would buy",
+      "points": "+40",
+      "comment": "Good"
+    },
+    {
+      "name": "Ritika Singh",
+      "userEmail": "ritika@zomato.com",
+      "campaignId": "vytfkytf-ytf-y-1778193047783",
+      "time": "Just now",
+      "rating": 1,
+      "label": "Needs work",
+      "points": "+10",
+      "comment": "poooor"
+    },
+    {
       "name": "Vijay Sawant",
       "userEmail": "vijay@reviewer.com",
       "campaignId": "vytfkytf-ytf-y-1778193047783",
@@ -654,7 +674,7 @@
     }
   ],
   "pointsByRole": {
-    "reviewer": "2510 pts",
+    "reviewer": "2560 pts",
     "brand": "8,920 pts"
   },
   "pageTitles": {
