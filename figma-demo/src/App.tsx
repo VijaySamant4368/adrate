@@ -49,6 +49,7 @@ import {
   ratingBreakdown,
   roleHints,
   rolePills,
+  type CreativeTone,
   type Campaign,
   type Role,
   type SectionKey,
@@ -69,13 +70,78 @@ type LoginFormState = {
   role: Role;
 };
 
+type CampaignDraftState = {
+  title: string;
+  brand: string;
+  category: string;
+  description: string;
+  launchNow: boolean;
+};
+
+type ReviewSubmitState = {
+  rating: number;
+  comment: string;
+};
+
 const sessionKey = 'adrate.session';
+const campaignFeedKey = 'adrate.campaignFeed';
+const businessFeedKey = 'adrate.businessFeed';
+const feedbackFeedKey = 'adrate.feedbackFeed';
 
 const demoAccounts: Array<Pick<LoginFormState, 'name' | 'email' | 'password' | 'role'>> = [
   { name: 'Vijay Sawant', email: 'vijay@adrate.ai', password: 'review123', role: 'reviewer' },
   { name: 'Aarav Mehta', email: 'aarav@brandstudio.ai', password: 'business123', role: 'business' },
   { name: 'Nisha Kapoor', email: 'nisha@fabindia.co', password: 'brand123', role: 'brand' },
 ];
+
+const categoryTones: Record<string, CreativeTone> = {
+  Fashion: { from: 'from-[#e9ddd0]', via: 'via-[#dbc5ad]', to: 'to-[#b38a61]', accent: 'bg-white/12' },
+  Tech: { from: 'from-[#d2f3ff]', via: 'via-[#7fd0ff]', to: 'to-[#2b6ddf]', accent: 'bg-white/14' },
+  Food: { from: 'from-[#f2d25c]', via: 'via-[#ffcc3d]', to: 'to-[#d19007]', accent: 'bg-black/12' },
+  Beauty: { from: 'from-[#efe8d8]', via: 'via-[#f5d6cf]', to: 'to-[#c9b38d]', accent: 'bg-white/10' },
+  Jewelry: { from: 'from-[#d9d3cd]', via: 'via-[#9c8573]', to: 'to-[#5c4c44]', accent: 'bg-white/10' },
+  Accessories: { from: 'from-[#e2c69a]', via: 'via-[#a36e3e]', to: 'to-[#1f1813]', accent: 'bg-white/10' },
+};
+
+function toneForCategory(category: string): CreativeTone {
+  return categoryTones[category] || categoryTones.Fashion;
+}
+
+function shortLabelFor(value: string) {
+  const trimmed = value.trim();
+  return (trimmed.charAt(0) || 'A').toUpperCase();
+}
+
+function buildCampaign(draft: CampaignDraftState, status: 'Active' | 'Paused'): Campaign {
+  const rating = draft.launchNow ? '4.8' : '0.0';
+  return {
+    id: `${draft.brand || draft.title}-${Date.now()}`.toLowerCase().replace(/[^a-z0-9-]+/g, '-'),
+    title: draft.title.trim() || 'New Campaign',
+    brand: draft.brand.trim() || 'Business Account',
+    category: draft.category.trim() || 'General',
+    status,
+    views: '0',
+    feedbacks: '0',
+    rating,
+    description:
+      draft.description.trim() || 'A newly published campaign created from the business upload flow.',
+    tone: toneForCategory(draft.category.trim() || 'Fashion'),
+    label: draft.category.trim() || 'General',
+    shortLabel: shortLabelFor(draft.brand || draft.title),
+  };
+}
+
+function labelForRating(rating: number) {
+  if (rating >= 5) return 'Loved it';
+  if (rating >= 4) return 'Would buy';
+  if (rating >= 3) return 'Mixed';
+  if (rating >= 2) return 'Boring';
+  return 'Needs work';
+}
+
+function pointsForRating(rating: number) {
+  return `+${Math.max(10, rating * 10)}`;
+}
 
 function loadSession(): SessionState {
   if (typeof window === 'undefined') {
@@ -123,15 +189,79 @@ function saveSession(next: SessionState) {
   window.localStorage.setItem(sessionKey, JSON.stringify(next));
 }
 
+function loadCampaignFeed() {
+  if (typeof window === 'undefined') {
+    return feedCampaigns;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(campaignFeedKey);
+    return raw ? (JSON.parse(raw) as Campaign[]) : feedCampaigns;
+  } catch {
+    return feedCampaigns;
+  }
+}
+
+function loadBusinessFeed() {
+  if (typeof window === 'undefined') {
+    return businessCampaigns;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(businessFeedKey);
+    return raw ? (JSON.parse(raw) as Campaign[]) : businessCampaigns;
+  } catch {
+    return businessCampaigns;
+  }
+}
+
+function loadFeedbackFeed() {
+  if (typeof window === 'undefined') {
+    return feedbackItems;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(feedbackFeedKey);
+    return raw ? (JSON.parse(raw) as typeof feedbackItems) : feedbackItems;
+  } catch {
+    return feedbackItems;
+  }
+}
+
+function saveJson(key: string, value: unknown) {
+  window.localStorage.setItem(key, JSON.stringify(value));
+}
+
 function App() {
   const [session, setSession] = useState<SessionState>(() => loadSession());
   const [search, setSearch] = useState('');
+  const [campaignFeed, setCampaignFeed] = useState<Campaign[]>(() => loadCampaignFeed());
+  const [businessFeed, setBusinessFeed] = useState<Campaign[]>(() => loadBusinessFeed());
+  const [feedbackFeed, setFeedbackFeed] = useState<typeof feedbackItems>(() => loadFeedbackFeed());
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       saveSession(session);
     }
   }, [session]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      saveJson(campaignFeedKey, campaignFeed);
+    }
+  }, [campaignFeed]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      saveJson(businessFeedKey, businessFeed);
+    }
+  }, [businessFeed]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      saveJson(feedbackFeedKey, feedbackFeed);
+    }
+  }, [feedbackFeed]);
 
   const handleLogin = (payload: LoginFormState) => {
     const defaultSection: SectionKey =
@@ -157,6 +287,56 @@ function App() {
     });
   };
 
+  const handlePublishCampaign = (draft: CampaignDraftState) => {
+    const publishedCampaign = buildCampaign(draft, draft.launchNow ? 'Active' : 'Paused');
+
+    setCampaignFeed((current) => [publishedCampaign, ...current]);
+    setBusinessFeed((current) => [publishedCampaign, ...current]);
+    setSession((current) => ({
+      ...current,
+      role: 'business',
+      section: 'dashboard',
+    }));
+  };
+
+  const handleSubmitFeedback = (campaign: Campaign, review: ReviewSubmitState) => {
+    const trimmedComment = review.comment.trim();
+    if (!trimmedComment) {
+      return;
+    }
+
+    const feedbackEntry = {
+      name: session.name || 'AdRate Reviewer',
+      time: 'Just now',
+      rating: review.rating,
+      label: labelForRating(review.rating),
+      points: pointsForRating(review.rating),
+      comment: trimmedComment,
+    };
+
+    setFeedbackFeed((current) => [feedbackEntry, ...current]);
+
+    const updateCampaign = (item: Campaign) => {
+      if (item.id !== campaign.id) {
+        return item;
+      }
+
+      const currentRating = Number.parseFloat(item.rating) || review.rating;
+      const nextViews = Number.parseInt(item.views.replace(/,/g, ''), 10) || 0;
+      const nextFeedbacks = Number.parseInt(item.feedbacks.replace(/,/g, ''), 10) || 0;
+
+      return {
+        ...item,
+        views: String(nextViews + 1),
+        feedbacks: String(nextFeedbacks + 1),
+        rating: ((currentRating + review.rating) / 2).toFixed(1),
+      };
+    };
+
+    setCampaignFeed((current) => current.map(updateCampaign));
+    setBusinessFeed((current) => current.map(updateCampaign));
+  };
+
   if (!session.loggedIn) {
     return <LoginScreen onLogin={handleLogin} onDemoLogin={handleLogin} />;
   }
@@ -166,6 +346,9 @@ function App() {
       session={session}
       search={search}
       setSearch={setSearch}
+      campaigns={campaignFeed}
+      businessCampaigns={businessFeed}
+      feedback={feedbackFeed}
       onSectionChange={(section) => setSession((current) => ({ ...current, section }))}
       onRoleChange={(role) =>
         setSession((current) => ({
@@ -174,6 +357,8 @@ function App() {
           section: role === 'reviewer' ? 'home' : role === 'brand' ? 'brand' : 'dashboard',
         }))
       }
+      onPublishCampaign={handlePublishCampaign}
+      onSubmitFeedback={handleSubmitFeedback}
       onLogout={handleLogout}
     />
   );
@@ -322,20 +507,30 @@ function Shell({
   session,
   search,
   setSearch,
+  campaigns,
+  businessCampaigns,
+  feedback,
   onSectionChange,
   onRoleChange,
+  onPublishCampaign,
+  onSubmitFeedback,
   onLogout,
 }: {
   session: SessionState;
   search: string;
   setSearch: (value: string) => void;
+  campaigns: Campaign[];
+  businessCampaigns: Campaign[];
+  feedback: typeof feedbackItems;
   onSectionChange: (section: SectionKey) => void;
   onRoleChange: (role: Role) => void;
+  onPublishCampaign: (draft: CampaignDraftState) => void;
+  onSubmitFeedback: (campaign: Campaign, review: ReviewSubmitState) => void;
   onLogout: () => void;
 }) {
-  const filteredFeedCampaigns = useMemo(() => FilterCampaigns(feedCampaigns, search), [search]);
-  const filteredBusinessCampaigns = useMemo(() => filterBusinessCampaigns(businessCampaigns, search), [search]);
-  const filteredFeedbackItems = useMemo(() => filterFeedback(feedbackItems, search), [search]);
+  const filteredFeedCampaigns = useMemo(() => FilterCampaigns(campaigns, search), [campaigns, search]);
+  const filteredBusinessCampaigns = useMemo(() => filterBusinessCampaigns(businessCampaigns, search), [businessCampaigns, search]);
+  const filteredFeedbackItems = useMemo(() => filterFeedback(feedback, search), [feedback, search]);
 
   const currentPage = pageTitles[session.section];
 
@@ -430,10 +625,10 @@ function Shell({
           </div>
 
           <div className="mt-2 space-y-6">
-            {session.section === 'home' && <HomePage campaigns={filteredFeedCampaigns} />}
-            {session.section === 'dashboard' && <DashboardPage campaigns={filteredBusinessCampaigns} feedback={filteredFeedbackItems} />}
-            {session.section === 'campaigns' && <CampaignsPage campaigns={filteredBusinessCampaigns} />}
-            {session.section === 'upload' && <UploadPage campaigns={filteredBusinessCampaigns.slice(0, 4)} />}
+            {session.section === 'home' && <HomePage campaigns={filteredFeedCampaigns} onSubmitFeedback={onSubmitFeedback} reviewerName={session.name} />}
+            {session.section === 'dashboard' && <DashboardPage campaigns={filteredBusinessCampaigns} feedback={filteredFeedbackItems} onNavigateUpload={() => onSectionChange('upload')} />}
+            {session.section === 'campaigns' && <CampaignsPage campaigns={filteredBusinessCampaigns} onNavigateUpload={() => onSectionChange('upload')} />}
+            {session.section === 'upload' && <UploadPage campaigns={filteredBusinessCampaigns.slice(0, 4)} onPublishCampaign={onPublishCampaign} />}
             {session.section === 'analytics' && <AnalyticsPage feedback={filteredFeedbackItems} />}
             {session.section === 'brand' && <BrandPage campaigns={filteredFeedCampaigns} />}
           </div>
@@ -523,7 +718,7 @@ function RoleSwitch({ role, onChange, stacked = false }: { role: Role; onChange:
   );
 }
 
-function HomePage({ campaigns }: { campaigns: Campaign[] }) {
+function HomePage({ campaigns, onSubmitFeedback, reviewerName }: { campaigns: Campaign[]; onSubmitFeedback: (campaign: Campaign, review: ReviewSubmitState) => void; reviewerName: string }) {
   return (
     <div className="space-y-6">
       <section className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
@@ -560,16 +755,23 @@ function HomePage({ campaigns }: { campaigns: Campaign[] }) {
         </Panel>
       </section>
 
+      {campaigns.length === 0 ? (
+        <Panel className="p-8 text-center">
+          <p className="text-xl font-semibold">No campaigns match your search.</p>
+          <p className="mt-2 text-sm text-white/55">Try a different keyword like brand, category, or status.</p>
+        </Panel>
+      ) : null}
+
       <div className="space-y-5">
         {campaigns.map((campaign) => (
-          <FeedCard key={campaign.id} campaign={campaign} />
+          <FeedCard key={campaign.id} campaign={campaign} onSubmitFeedback={onSubmitFeedback} reviewerName={reviewerName} />
         ))}
       </div>
     </div>
   );
 }
 
-function DashboardPage({ campaigns, feedback }: { campaigns: Campaign[]; feedback: typeof feedbackItems }) {
+function DashboardPage({ campaigns, feedback, onNavigateUpload }: { campaigns: Campaign[]; feedback: typeof feedbackItems; onNavigateUpload: () => void }) {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -578,7 +780,7 @@ function DashboardPage({ campaigns, feedback }: { campaigns: Campaign[]; feedbac
           <h2 className="text-4xl font-semibold tracking-tight">Dashboard</h2>
           <p className="mt-2 text-white/60">Track your campaign performance and keep live feedback in view.</p>
         </div>
-        <PrimaryButton icon={Plus} label="Upload New Campaign" />
+        <PrimaryButton icon={Plus} label="Upload New Campaign" onClick={onNavigateUpload} />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -609,11 +811,18 @@ function DashboardPage({ campaigns, feedback }: { campaigns: Campaign[]; feedbac
           </button>
         </div>
 
-        <div className="space-y-4">
-          {campaigns.slice(0, 4).map((campaign) => (
-            <CampaignRow key={campaign.title} campaign={campaign} />
-          ))}
-        </div>
+        {campaigns.length === 0 ? (
+          <Panel className="p-6 text-center">
+            <p className="text-lg font-semibold">No campaigns found.</p>
+            <p className="mt-2 text-sm text-white/55">Update your search keyword to see active campaign cards.</p>
+          </Panel>
+        ) : (
+          <div className="space-y-4">
+            {campaigns.slice(0, 4).map((campaign) => (
+              <CampaignRow key={campaign.title} campaign={campaign} />
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
@@ -624,11 +833,15 @@ function DashboardPage({ campaigns, feedback }: { campaigns: Campaign[]; feedbac
               View All Feedback
             </button>
           </div>
-          <div className="mt-4 space-y-3">
-            {feedback.slice(0, 4).map((item) => (
-              <FeedbackCard key={`${item.name}-${item.time}`} feedback={item} />
-            ))}
-          </div>
+          {feedback.length === 0 ? (
+            <p className="mt-4 text-sm text-white/55">No feedback matches your search.</p>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {feedback.slice(0, 4).map((item) => (
+                <FeedbackCard key={`${item.name}-${item.time}`} feedback={item} />
+              ))}
+            </div>
+          )}
         </Panel>
 
         <Panel className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-1">
@@ -642,7 +855,7 @@ function DashboardPage({ campaigns, feedback }: { campaigns: Campaign[]; feedbac
   );
 }
 
-function CampaignsPage({ campaigns }: { campaigns: Campaign[] }) {
+function CampaignsPage({ campaigns, onNavigateUpload }: { campaigns: Campaign[]; onNavigateUpload: () => void }) {
   const [filter, setFilter] = useState<'All' | 'Active' | 'Paused'>('All');
   const visible = campaigns.filter((campaign) => filter === 'All' || campaign.status === filter);
 
@@ -654,7 +867,7 @@ function CampaignsPage({ campaigns }: { campaigns: Campaign[] }) {
           <h2 className="text-4xl font-semibold tracking-tight">All Campaigns</h2>
           <p className="mt-2 text-white/60">{campaigns.filter((item) => item.status === 'Active').length} Active • {campaigns.filter((item) => item.status === 'Paused').length} Paused</p>
         </div>
-        <PrimaryButton icon={Plus} label="Upload New Campaign" />
+        <PrimaryButton icon={Plus} label="Upload New Campaign" onClick={onNavigateUpload} />
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-sm text-white/60">
@@ -665,17 +878,69 @@ function CampaignsPage({ campaigns }: { campaigns: Campaign[] }) {
         ))}
       </div>
 
-      <div className="space-y-4">
-        {visible.map((campaign) => (
-          <CampaignRow key={campaign.title} campaign={campaign} compact />
-        ))}
-      </div>
+      {visible.length === 0 ? (
+        <Panel className="p-8 text-center">
+          <p className="text-xl font-semibold">No campaigns found.</p>
+          <p className="mt-2 text-sm text-white/55">Try searching by title, category, status, or rating.</p>
+        </Panel>
+      ) : (
+        <div className="space-y-4">
+          {visible.map((campaign) => (
+            <CampaignRow key={campaign.title} campaign={campaign} compact />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function UploadPage({ campaigns }: { campaigns: Campaign[] }) {
+function UploadPage({ campaigns, onPublishCampaign }: { campaigns: Campaign[]; onPublishCampaign: (draft: CampaignDraftState) => void }) {
   const [enabled, setEnabled] = useState(true);
+  const [selectedFileName, setSelectedFileName] = useState('No file selected');
+  const [selectedFileUrl, setSelectedFileUrl] = useState<string | null>(null);
+  const [draft, setDraft] = useState<CampaignDraftState>({
+    title: 'Diwali Special Sale 2026',
+    brand: 'Haldirams',
+    category: 'Food',
+    description: 'Show a bold festive campaign with a strong offer, warm color palette, and a direct launch message.',
+    launchNow: true,
+  });
+
+  const handlePublish = () => {
+    onPublishCampaign({ ...draft, launchNow: enabled });
+    setDraft({
+      title: '',
+      brand: '',
+      category: '',
+      description: '',
+      launchNow: true,
+    });
+    setEnabled(true);
+  };
+
+  const handleFileChange = (file: File | null) => {
+    if (!file) {
+      setSelectedFileName('No file selected');
+      setSelectedFileUrl(null);
+      return;
+    }
+
+    setSelectedFileName(file.name);
+
+    if (selectedFileUrl) {
+      window.URL.revokeObjectURL(selectedFileUrl);
+    }
+
+    setSelectedFileUrl(window.URL.createObjectURL(file));
+  };
+
+  useEffect(() => {
+    return () => {
+      if (selectedFileUrl) {
+        window.URL.revokeObjectURL(selectedFileUrl);
+      }
+    };
+  }, [selectedFileUrl]);
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
@@ -688,29 +953,62 @@ function UploadPage({ campaigns }: { campaigns: Campaign[] }) {
 
         <Panel className="p-5">
           <h3 className="text-2xl font-semibold tracking-tight">1. Upload Your Ad</h3>
-          <button
-            type="button"
-            className="mt-5 flex h-[300px] w-full flex-col items-center justify-center rounded-[28px] border-2 border-dashed border-white/18 bg-black/15 text-center transition hover:border-accent-300/60 hover:bg-white/4"
+          <label
+            htmlFor="campaign-upload-input"
+            className="mt-5 flex h-[300px] w-full cursor-pointer flex-col items-center justify-center rounded-[28px] border-2 border-dashed border-white/18 bg-black/15 text-center transition hover:border-accent-300/60 hover:bg-white/4"
           >
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[linear-gradient(135deg,rgba(140,75,255,0.32),rgba(59,130,246,0.16))]">
-              <Upload className="h-9 w-9 text-accent-100" />
-            </div>
-            <p className="mt-6 text-2xl font-semibold">Upload your ad</p>
-            <p className="mt-2 text-sm text-white/55">Drag and drop or click to browse</p>
-            <div className="mt-8 flex items-center gap-6 text-xs text-white/45">
-              <span className="inline-flex items-center gap-2"><ImageUp className="h-4 w-4" />Image</span>
-              <span className="inline-flex items-center gap-2"><FileUp className="h-4 w-4" />Video (9:16 preferred)</span>
-            </div>
-          </button>
+            <input
+              id="campaign-upload-input"
+              type="file"
+              accept="image/*,video/*"
+              className="sr-only"
+              onChange={(event) => handleFileChange(event.target.files?.[0] || null)}
+            />
+            {selectedFileUrl ? (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-4">
+                <div className="overflow-hidden rounded-[22px] border border-white/10 bg-black/30 shadow-panel">
+                  {selectedFileName.toLowerCase().match(/\.(mp4|webm|mov|m4v)$/) ? (
+                    <video src={selectedFileUrl} className="h-48 w-72 object-cover" controls />
+                  ) : (
+                    <img src={selectedFileUrl} alt={selectedFileName} className="h-48 w-72 object-cover" />
+                  )}
+                </div>
+                <p className="text-lg font-semibold">{selectedFileName}</p>
+                <p className="text-sm text-white/55">Click to replace the uploaded ad</p>
+              </div>
+            ) : (
+              <>
+                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[linear-gradient(135deg,rgba(140,75,255,0.32),rgba(59,130,246,0.16))]">
+                  <Upload className="h-9 w-9 text-accent-100" />
+                </div>
+                <p className="mt-6 text-2xl font-semibold">Upload your ad</p>
+                <p className="mt-2 text-sm text-white/55">Click to browse image or video files</p>
+                <div className="mt-8 flex items-center gap-6 text-xs text-white/45">
+                  <span className="inline-flex items-center gap-2"><ImageUp className="h-4 w-4" />Image</span>
+                  <span className="inline-flex items-center gap-2"><FileUp className="h-4 w-4" />Video (9:16 preferred)</span>
+                </div>
+              </>
+            )}
+          </label>
           <p className="mt-4 text-sm text-white/45">Best performance for vertical videos and tall creatives.</p>
         </Panel>
 
         <Panel className="p-5">
           <h3 className="text-2xl font-semibold tracking-tight">2. Basic Details</h3>
           <div className="mt-5 space-y-4">
-            <TextField label="Campaign Name" placeholder="e.g., Diwali Special Sale 2026" />
-            <TextField label="Brand Name" placeholder="e.g., Haldirams" />
-            <TextField label="Category" placeholder="Food, Tech, Fashion, Beauty..." />
+            <TextField label="Campaign Name" placeholder="e.g., Diwali Special Sale 2026" value={draft.title} onChange={(value) => setDraft((current) => ({ ...current, title: value }))} />
+            <TextField label="Brand Name" placeholder="e.g., Haldirams" value={draft.brand} onChange={(value) => setDraft((current) => ({ ...current, brand: value }))} />
+            <TextField label="Category" placeholder="Food, Tech, Fashion, Beauty..." value={draft.category} onChange={(value) => setDraft((current) => ({ ...current, category: value }))} />
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-white/70">Campaign Description</span>
+              <textarea
+                value={draft.description}
+                onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))}
+                rows={5}
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-white/30 focus:border-accent-400/70 focus:ring-2 focus:ring-accent-500/20"
+                placeholder="Write the campaign concept, tone, and goal..."
+              />
+            </label>
           </div>
         </Panel>
 
@@ -741,7 +1039,7 @@ function UploadPage({ campaigns }: { campaigns: Campaign[] }) {
             <PencilLine className="h-4 w-4" />
             Save Draft
           </button>
-          <button type="button" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-accent-500 to-blue-500 px-6 py-4 text-sm font-semibold text-white shadow-glow transition hover:scale-[1.01]">
+          <button type="button" onClick={handlePublish} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-accent-500 to-blue-500 px-6 py-4 text-sm font-semibold text-white shadow-glow transition hover:scale-[1.01]">
             Launch Campaign
             <ArrowRight className="h-4 w-4" />
           </button>
@@ -753,6 +1051,15 @@ function UploadPage({ campaigns }: { campaigns: Campaign[] }) {
           <div>
             <p className="text-sm text-white/45">Sidebar</p>
             <h3 className="text-2xl font-semibold tracking-tight">Your Active Campaigns</h3>
+          </div>
+        </div>
+        <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+          <p className="text-sm text-white/45">Preview</p>
+          <p className="mt-1 text-lg font-semibold">{draft.title || 'Campaign preview'}</p>
+          <p className="mt-1 text-sm text-white/60">{draft.brand || 'Brand'}</p>
+          <p className="mt-2 text-sm leading-6 text-white/55">{draft.description || 'Your live campaign description will appear here.'}</p>
+          <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/65">
+            Uploaded file: <span className="font-semibold text-white">{selectedFileName}</span>
           </div>
         </div>
         <div className="space-y-3">
@@ -927,7 +1234,20 @@ function BrandPage({ campaigns }: { campaigns: Campaign[] }) {
   );
 }
 
-function FeedCard({ campaign, brandMode = false }: { campaign: Campaign; brandMode?: boolean }) {
+function FeedCard({
+  campaign,
+  brandMode = false,
+  onSubmitFeedback,
+  reviewerName,
+}: {
+  campaign: Campaign;
+  brandMode?: boolean;
+  onSubmitFeedback?: (campaign: Campaign, review: ReviewSubmitState) => void;
+  reviewerName?: string;
+}) {
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
+
   return (
     <article className="overflow-hidden rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.03))] p-4 shadow-panel lg:p-5">
       <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
@@ -957,6 +1277,60 @@ function FeedCard({ campaign, brandMode = false }: { campaign: Campaign; brandMo
               Skip
             </button>
           </div>
+
+          {!brandMode ? (
+            <div className="rounded-[28px] border border-white/10 bg-black/20 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-white/80">Leave a review</p>
+                  <p className="text-xs text-white/45">Rate the ad and add a short comment</p>
+                  {reviewerName ? <p className="mt-1 text-xs text-white/40">Posting as {reviewerName}</p> : null}
+                </div>
+                <div className="flex items-center gap-2">
+                  {Array.from({ length: 5 }, (_, index) => index + 1).map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setRating(value)}
+                      className={`flex h-10 w-10 items-center justify-center rounded-full border transition ${
+                        rating >= value
+                          ? 'border-amber-400/40 bg-amber-400/15 text-amber-300'
+                          : 'border-white/10 bg-white/5 text-white/45 hover:bg-white/10'
+                      }`}
+                    >
+                      <Star className={`h-4 w-4 ${rating >= value ? 'fill-amber-400 text-amber-400' : ''}`} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <textarea
+                value={comment}
+                onChange={(event) => setComment(event.target.value)}
+                rows={3}
+                placeholder={`Comment on ${campaign.title}...`}
+                className="mt-4 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-accent-400/70 focus:ring-2 focus:ring-accent-500/20"
+              />
+
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-sm text-white/55">
+                  Current rating: <span className="font-semibold text-white">{rating.toFixed(0)} / 5</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSubmitFeedback?.(campaign, { rating, comment });
+                    setComment('');
+                    setRating(5);
+                  }}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-accent-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-glow transition hover:scale-[1.01]"
+                >
+                  <Send className="h-4 w-4" />
+                  Submit Review
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </article>
@@ -1081,9 +1455,9 @@ function Panel({ children, className = '' }: { children: ReactNode; className?: 
   return <section className={`rounded-[32px] border border-white/10 bg-white/5 shadow-panel backdrop-blur-xl ${className}`}>{children}</section>;
 }
 
-function PrimaryButton({ icon: Icon, label }: { icon: ComponentType<{ className?: string }>; label: string }) {
+function PrimaryButton({ icon: Icon, label, onClick }: { icon: ComponentType<{ className?: string }>; label: string; onClick?: () => void }) {
   return (
-    <button type="button" className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-accent-500 to-blue-500 px-5 py-4 text-sm font-semibold text-white shadow-glow transition hover:scale-[1.01]">
+    <button type="button" onClick={onClick} className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-accent-500 to-blue-500 px-5 py-4 text-sm font-semibold text-white shadow-glow transition hover:scale-[1.01]">
       <Icon className="h-4 w-4" />
       {label}
     </button>
@@ -1157,10 +1531,14 @@ function InsightCard({ title, value, tone }: { title: string; value: string; ton
 function TextField({
   label,
   placeholder,
+  value,
+  onChange,
   type = 'text',
 }: {
   label: string;
   placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
   type?: string;
 }) {
   return (
@@ -1168,6 +1546,8 @@ function TextField({
       <span className="mb-2 block text-sm font-medium text-white/70">{label}</span>
       <input
         type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         className="h-14 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-white outline-none placeholder:text-white/30 focus:border-accent-400/70 focus:ring-2 focus:ring-accent-500/20"
       />
@@ -1253,7 +1633,16 @@ function FilterCampaigns(campaigns: Campaign[], search: string) {
   }
 
   return campaigns.filter((campaign) => {
-    return [campaign.title, campaign.brand, campaign.category, campaign.description, campaign.status]
+    return [
+      campaign.title,
+      campaign.brand,
+      campaign.category,
+      campaign.description,
+      campaign.status,
+      campaign.views,
+      campaign.feedbacks,
+      campaign.rating,
+    ]
       .join(' ')
       .toLowerCase()
       .includes(query);
